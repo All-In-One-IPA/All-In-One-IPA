@@ -44,6 +44,8 @@ targets:
       path: KeyboardExtension/Info.plist
       properties:
         CFBundleDisplayName: "All-In-One Keyboard"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: "com.apple.keyboard-service"
           NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).KeyboardViewController"
@@ -56,6 +58,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "io.github.allinoneipa.app.keyboard"
         PRODUCT_NAME: "AllInOneKeyboard"
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "2"
         APPLICATION_EXTENSION_API_ONLY: "YES"
         CODE_SIGN_STYLE: "Automatic"
         SKIP_INSTALL: "YES"

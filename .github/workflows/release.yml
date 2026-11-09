@@ -86,6 +86,10 @@ jobs:
           import plistlib, sys
           with open(sys.argv[1], 'rb') as fh:
               info = plistlib.load(fh)
+          with open(sys.argv[1].replace('/PlugIns/AllInOneKeyboard.appex/Info.plist', '/Info.plist'), 'rb') as fh:
+              parent = plistlib.load(fh)
+          assert info['CFBundleVersion'] == parent['CFBundleVersion']
+          assert info['CFBundleShortVersionString'] == parent['CFBundleShortVersionString']
           assert info['NSExtension']['NSExtensionPointIdentifier'] == 'com.apple.keyboard-service'
           assert info['NSExtension']['NSExtensionAttributes']['RequestsOpenAccess'] is False
           print('Verified keyboard extension in unsigned IPA payload')
