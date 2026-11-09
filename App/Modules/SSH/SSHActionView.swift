@@ -84,7 +84,7 @@ struct SSHActionView: View {
                 let clientSFTP = try await client.openSFTP()
                 defer { Task { try? await clientSFTP.close() } }
                 let directory = try await clientSFTP.listDirectory(atPath: remotePath)
-                let names = directory.map { $0.filename }
+                let names = directory.flatMap { $0.components.map { $0.filename } }
                 output = names.isEmpty ? "Папка пуста." : names.joined(separator: "\n")
             }
         } catch {

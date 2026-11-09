@@ -45,7 +45,7 @@ private final class SOCKS5Session {
             if let data { self.buffer.append(data) }
             if self.buffer.count > 65536 || done || error != nil { self.stop(); return }
             self.parseHandshake()
-            if !self.stopped, self.phase != .relay {
+            if !self.stopped, self.phase != .relay && self.phase != .connecting {
                 self.readHandshake()
             }
         }
