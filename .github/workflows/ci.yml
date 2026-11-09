@@ -3,6 +3,12 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'App/**'
+      - 'KeyboardExtension/**'
+      - 'project.yml'
+      - 'scripts/**'
+      - '.github/workflows/**'
   pull_request:
 
 permissions:

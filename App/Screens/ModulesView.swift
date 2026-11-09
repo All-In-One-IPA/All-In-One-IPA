@@ -33,7 +33,7 @@ struct ModulesView: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Palette.secondary)
                         Spacer()
-                        Text("\(ModuleCatalog.all.filter { $0.status == .beta }.count) в бета-версии")
+                        Text("\(ModuleCatalog.all.filter { $0.status == .beta }.count) рабочий, \(ModuleCatalog.all.filter { $0.status == .foundation }.count) каркасов")
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.secondary)
                     }

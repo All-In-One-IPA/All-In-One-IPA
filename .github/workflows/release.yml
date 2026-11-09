@@ -22,32 +22,54 @@ on:
           - stable
   release:
     types: [published]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
 
 permissions:
   contents: write
 
 concurrency:
-  group: aio-release-${{ github.event.release.tag_name || inputs.version || github.ref_name }}
+  group: aio-release-${{ github.event_name == 'workflow_run' && 'automatic' || (github.event.release.tag_name || inputs.version || github.ref_name) }}
   cancel-in-progress: false
 
 jobs:
   build-ipa:
     name: Build unsigned IPA
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
       - name: Resolve release version
         id: meta
         env:
+          GH_TOKEN: ${{ github.token }}
           MANUAL_VERSION: ${{ inputs.version }}
           PUBLISHED_TAG: ${{ github.event.release.tag_name }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           case "$GITHUB_EVENT_NAME" in
             release) VERSION="$PUBLISHED_TAG" ;;
             workflow_dispatch) VERSION="$MANUAL_VERSION" ;;
             push) VERSION="$GITHUB_REF_NAME" ;;
+            workflow_run)
+              CURRENT_SHA="$(git ls-remote origin refs/heads/main | cut -f1)"
+              if [[ "$SOURCE_SHA" != "$CURRENT_SHA" ]]; then
+                echo "Skipping superseded CI run: $SOURCE_SHA (main: $CURRENT_SHA)"
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              BASE="$(awk '/^    MARKETING_VERSION:/ { gsub(/"/, "", $2); print $2; exit }' project.yml)"
+              VERSIONS="$(gh release list --limit 100 --json tagName --jq '.[].tagName')"
+              VERSION="$(printf '%s\n' "$VERSIONS" | python3 scripts/next_version.py "$BASE")"
+              ;;
+            *) echo "Unknown release trigger" >&2; exit 1 ;;
           esac
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "Version must be vMAJOR.MINOR.PATCH, optionally with a prerelease suffix" >&2
@@ -55,13 +77,18 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "number=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION (source $SOURCE_SHA)"
       - name: Install XcodeGen
+        if: steps.meta.outputs.skip != 'true'
         run: brew install xcodegen
       - name: Generate app icon
+        if: steps.meta.outputs.skip != 'true'
         run: swift scripts/make-icon.swift
       - name: Generate Xcode project
+        if: steps.meta.outputs.skip != 'true'
         run: xcodegen generate
       - name: Build application without signing
+        if: steps.meta.outputs.skip != 'true'
         env:
           APP_VERSION: ${{ steps.meta.outputs.number }}
         run: |
@@ -71,8 +98,10 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/aio-release" \
             MARKETING_VERSION="$APP_VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CODE_SIGNING_ALLOWED=NO build
       - name: Package unsigned IPA
+        if: steps.meta.outputs.skip != 'true'
         id: package
         env:
           VERSION: ${{ steps.meta.outputs.version }}
@@ -101,6 +130,7 @@ jobs:
           shasum -a 256 "$IPA" | sed "s|$GITHUB_WORKSPACE/||" > "$GITHUB_WORKSPACE/SHA256SUMS.txt"
           echo "ipa=$IPA" >> "$GITHUB_OUTPUT"
       - name: Upload Actions artifact
+        if: steps.meta.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-ipa-${{ steps.meta.outputs.version }}
@@ -110,19 +140,20 @@ jobs:
           retention-days: 30
           if-no-files-found: error
       - name: Publish or update GitHub release
-        if: github.event_name != 'workflow_dispatch' || inputs.mode != 'artifact'
+        if: steps.meta.outputs.skip != 'true' && (github.event_name != 'workflow_dispatch' || inputs.mode != 'artifact')
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.meta.outputs.version }}
           MODE: ${{ inputs.mode }}
           IPA: ${{ steps.package.outputs.ipa }}
+          SOURCE_SHA: ${{ steps.meta.outputs.source_sha }}
         run: |
           set -euo pipefail
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "$IPA" SHA256SUMS.txt --clobber
             exit 0
           fi
-          FLAGS=(--target "$GITHUB_SHA" --title "$VERSION" --generate-notes)
+          FLAGS=(--target "$SOURCE_SHA" --title "$VERSION" --generate-notes)
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             case "$MODE" in
               draft) FLAGS+=(--draft) ;;
@@ -130,7 +161,7 @@ jobs:
               stable) ;;
               *) echo "Unsupported release mode" >&2; exit 1 ;;
             esac
-          elif [[ "$VERSION" == *-* ]]; then
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_run" || "$VERSION" == *-* ]]; then
             FLAGS+=(--prerelease)
           fi
           gh release create "$VERSION" "$IPA" SHA256SUMS.txt "${FLAGS[@]}"

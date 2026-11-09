@@ -29,6 +29,10 @@ A personal, modular iOS utility app built with SwiftUI. One place for network to
 
 The planned tg-ws-proxy integration specifically refers to **Flowseal/tg-ws-proxy**, a local Telegram MTProto proxy. It is **not** a Telemt relay. Background execution on iOS requires device testing and is not promised.
 
+## Module foundations
+
+Every non-keyboard module has a separate blueprint in `App/Modules/<Module>/`, its own typed configuration fields, a SwiftUI workspace and local save/reset controls. These are **not** operational network services yet. Sensitive credentials intentionally are not entered here; future authentication belongs in Keychain. Network Lab additionally includes an explicit, working HTTPS HEAD probe.
+
 ## Keyboard
 
 AllInOneKeyboard is a separate `com.apple.keyboard-service` app extension embedded inside the IPA. It can insert and delete text in third-party text fields, switch between Russian and English, use Shift/Caps Lock and symbol layouts, and change keyboard appearance. It does not request Full Access, App Groups or network access.
@@ -51,7 +55,11 @@ xcodebuild -project AllInOne.xcodeproj -scheme AllInOne -configuration Release \
 
 The GitHub Actions release pipeline creates an **unsigned IPA** for later local signing and installation, for example with [xtool](https://github.com/xtool-org/xtool) on your own computer. Do **not** upload your Apple ID, provisioning profiles, or private signing keys to GitHub.
 
-## Releases — three triggers
+## Automatic releases
+
+After a successful `CI` build of a non-documentation commit on `main`, `Release` automatically builds a new **unsigned IPA** and publishes a prerelease. The first automated version uses `MARKETING_VERSION` from `project.yml` if it is ahead of the published releases; subsequent builds increment the patch (e.g. `v0.2.0`, `v0.2.1`). Superseded CI runs are skipped. Changes to README / Docs alone do not trigger CI or releases. Apple credentials remain only on your local machine and signed apps must still be installed through xtool.
+
+## Releases — three manual triggers
 
 The `Release` workflow supports:
 

@@ -42,3 +42,12 @@
 ## Constraints
 
 The public CI workflow builds *unsigned* IPAs. It must not handle Apple ID credentials or signing secrets. Local xtool can prepare profiles, sign and install the IPA. Free Apple provisioning and iOS sandbox restrictions still apply. No VPN tunnel or push entitlement is assumed.
+
+## Shared module foundation & CI/CD
+
+- [x] Separate module definitions for tg-ws-proxy, SSH, DNS, Media, Torrent, Mail, Beszel, Network Lab, Archives, Server Tools and Automation
+- [x] Typed configuration fields with validation and per-module local save/reset
+- [x] Working manual HTTPS HEAD probe in Network Lab
+- [x] Release workflow chained to successful CI on code changes in main
+- [x] Automatic semantic patch increments, unsigned IPA distribution and SHA256 verification
+- [ ] Implement each real module independently with secure credentials and tests
