@@ -10,6 +10,8 @@ private func aio_torrent_add_magnet(_ magnet: UnsafePointer<CChar>) -> UnsafeMut
 private func aio_torrent_add_file(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>?
 @_silgen_name("aio_torrent_list")
 private func aio_torrent_list() -> UnsafeMutablePointer<CChar>?
+@_silgen_name("aio_torrent_diagnostics")
+private func aio_torrent_diagnostics() -> UnsafeMutablePointer<CChar>?
 @_silgen_name("aio_torrent_pause")
 private func aio_torrent_pause(_ id: UInt64) -> UnsafeMutablePointer<CChar>?
 @_silgen_name("aio_torrent_resume")
@@ -52,6 +54,10 @@ enum EmbeddedTorrentLibrary {
 
     static func list() throws -> [String: Any] {
         try unpack(aio_torrent_list())
+    }
+
+    static func diagnostics() throws -> [String: Any] {
+        try unpack(aio_torrent_diagnostics())
     }
 
     static func pause(_ id: Int) throws {

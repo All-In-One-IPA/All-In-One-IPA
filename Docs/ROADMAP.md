@@ -71,3 +71,15 @@ The former configuration-only screens were not functional module foundations. Ne
 - [x] Replace Beszel dashboard client with a WebSocket agent using TOKEN/KEY verification and CBOR
 - [ ] Pass Rust/iOS CI and validate local peer downloads on real iPhone
 - [ ] Verify the agent against actual Beszel Hub and unavailable iOS metrics
+
+## SOCKS5 listener and librqbit throughput troubleshooting
+
+- [x] Retain SOCKS5 service beyond SwiftUI view re-creation; remove implicit `onDisappear` stop
+- [x] Preserve `NWListener` errors, report listening port, and expose an in-app SOCKS5 greeting test
+- [x] Add SOCKS5 IPv6 destination parsing
+- [x] Move Rust session ownership behind a short-lived Arc clone so long magnet lookups do not block torrent listing and pause/resume
+- [x] Raise peer limit 40 → 120 and Tokio worker count 2 → 4
+- [x] Show live connected/connecting/seen peers, DHT status and sub-MiB/s transfer speeds
+- [ ] Compare an actively seeded legal torrent on Wi-Fi and mobile network
+- [ ] Profile iOS memory/CPU use under load, and investigate incoming-connection NAT behavior
+- [ ] Implement Flowseal MTProto-over-WebSocket (not yet provided by the SOCKS5 fallback)

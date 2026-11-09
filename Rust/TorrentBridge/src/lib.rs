@@ -8,7 +8,7 @@ use std::{
     ffi::{CStr, CString},
     os::raw::c_char,
     path::PathBuf,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use librqbit::{
@@ -23,9 +23,9 @@ struct Engine {
     api: Api,
 }
 
-static ENGINE: OnceLock<Mutex<Option<Engine>>> = OnceLock::new();
+static ENGINE: OnceLock<Mutex<Option<Arc<Engine>>>> = OnceLock::new();
 
-fn engine() -> &'static Mutex<Option<Engine>> {
+fn engine() -> &'static Mutex<Option<Arc<Engine>>> {
     ENGINE.get_or_init(|| Mutex::new(None))
 }
 
@@ -52,11 +52,14 @@ fn ffi_result(operation: impl FnOnce() -> Result<Value, String>) -> *mut c_char 
 }
 
 fn with_engine(action: impl FnOnce(&Engine) -> Result<Value, String>) -> Result<Value, String> {
-    let guard = engine().lock().map_err(|_| "Torrent engine mutex unavailable")?;
-    match guard.as_ref() {
-        Some(engine) => action(engine),
-        None => Err("Сначала запусти торрент-движок.".into()),
-    }
+    // Never hold the global mutex while resolving magnet metadata or connecting
+    // to trackers. Those operations can take seconds; the UI must remain able
+    // to fetch statistics, pause downloads and show peer diagnostics.
+    let current = {
+        let guard = engine().lock().map_err(|_| "Torrent engine mutex unavailable")?;
+        Arc::clone(guard.as_ref().ok_or("Сначала запусти торрент-движок.")?)
+    };
+    action(&current)
 }
 
 #[no_mangle]
@@ -76,7 +79,7 @@ pub extern "C" fn aio_torrent_initialize(folder: *const c_char) -> *mut c_char {
             return Ok(json!({"status": "already_started"}));
         }
         let runtime = Builder::new_multi_thread()
-            .worker_threads(2)
+            .worker_threads(4)
             .enable_all()
             .build()
             .map_err(|e| format!("Tokio: {e}"))?;
@@ -85,17 +88,18 @@ pub extern "C" fn aio_torrent_initialize(folder: *const c_char) -> *mut c_char {
         options.fastresume = true;
         options.ipv4_only = true;
         options.disable_local_service_discovery = true;
-        options.peer_limit = Some(40);
+        options.peer_limit = Some(120);
+        options.runtime_worker_threads = Some(4);
         options.persistence = Some(SessionPersistenceConfig::Json {
             folder: Some(state_path),
         });
         let session = runtime
             .block_on(Session::new_with_opts(path, options))
             .map_err(|e| format!("librqbit: {e:#}"))?;
-        *guard = Some(Engine {
+        *guard = Some(Arc::new(Engine {
             runtime,
             api: Api::new(session, None),
-        });
+        }));
 
         Ok(json!({"status": "started", "engine": "librqbit 9.0.0"}))
     })
@@ -158,6 +162,27 @@ pub extern "C" fn aio_torrent_list() -> *mut c_char {
     })
 }
 
+/// Live session diagnostics: peer counts, connection errors, DHT routing.
+/// Useful for distinguishing a badly seeded torrent from an app/network issue.
+#[no_mangle]
+pub extern "C" fn aio_torrent_diagnostics() -> *mut c_char {
+    ffi_result(|| {
+        with_engine(|e| {
+            let session = serde_json::to_value(e.api.api_session_stats())
+                .map_err(|err| err.to_string())?;
+            let dht = e.api.api_dht_stats()
+                .ok()
+                .and_then(|stats| serde_json::to_value(stats).ok());
+            Ok(json!({
+                "session": session,
+                "dht": dht,
+                "peer_limit": 120,
+                "runtime_workers": 4,
+            }))
+        })
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn aio_torrent_pause(id: u64) -> *mut c_char {
     ffi_result(|| {
@@ -203,10 +228,13 @@ pub extern "C" fn aio_torrent_remove(id: u64, delete_files: bool) -> *mut c_char
 #[no_mangle]
 pub extern "C" fn aio_torrent_shutdown() -> *mut c_char {
     ffi_result(|| {
-        let mut guard = engine().lock().map_err(|_| "Torrent engine mutex unavailable")?;
-        if let Some(engine) = guard.take() {
-            engine.runtime.shutdown_background();
-        }
+        let current = {
+            let mut guard = engine().lock().map_err(|_| "Torrent engine mutex unavailable")?;
+            guard.take()
+        };
+        // Outstanding requests retain Arc<Engine> until completion. Drop the
+        // owner here without blocking the UI on magnet/peer network I/O.
+        drop(current);
         Ok(json!({"status": "stopped"}))
     })
 }

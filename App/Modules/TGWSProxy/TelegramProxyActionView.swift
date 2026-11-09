@@ -1,5 +1,6 @@
 import SwiftUI
 import Network
+import Darwin
 
 /// A foreground-only local SOCKS5/TCP relay. This is a genuine network
 /// operation, but is NOT yet Flowseal's MTProto-over-WebSocket transport.
@@ -86,6 +87,20 @@ private final class SOCKS5Session {
                 host = bytes[4..<8].map { String($0) }.joined(separator: ".")
                 portOffset = 8
                 requestLength = 10
+            case 4: // IPv6 destination requested by Telegram
+                guard bytes.count >= 22 else { return }
+                var address = in6_addr()
+                withUnsafeMutableBytes(of: &address) { dest in
+                    dest.copyBytes(from: bytes[4..<20])
+                }
+                var printable = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+                let converted = withUnsafePointer(to: &address) {
+                    inet_ntop(AF_INET6, $0, &printable, socklen_t(printable.count))
+                }
+                guard converted != nil else { stop(); return }
+                host = String(cString: printable)
+                portOffset = 20
+                requestLength = 22
             case 3:
                 guard bytes.count >= 5 else { return }
                 let length = Int(bytes[4])
@@ -152,9 +167,12 @@ private final class SOCKS5Session {
 }
 
 private final class LocalSOCKS5Proxy: ObservableObject {
+    /// A shared service is not destroyed when SwiftUI rebuilds a tab or workspace.
+    static let shared = LocalSOCKS5Proxy()
     @Published private(set) var running = false
     @Published private(set) var status = "Остановлен"
     @Published private(set) var sessions = 0
+    @Published private(set) var activePort: UInt16?
 
     private let queue = DispatchQueue(label: "io.github.allinoneipa.socks5")
     private var listener: NWListener?
@@ -162,6 +180,7 @@ private final class LocalSOCKS5Proxy: ObservableObject {
 
     func start(port: UInt16) {
         guard !running, listener == nil else { return }
+        status = "Запуск локального SOCKS5..."
         guard let endpointPort = NWEndpoint.Port(rawValue: port), port > 0 else {
             status = "Укажи порт от 1 до 65535."
             return
@@ -186,16 +205,20 @@ private final class LocalSOCKS5Proxy: ObservableObject {
                 let count = self.connections.count
                 Task { @MainActor in self.sessions = count }
             }
-            listener.stateUpdateHandler = { [weak self] state in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
+            listener.stateUpdateHandler = { [weak self, weak listener] state in
+                Task { @MainActor [weak self, weak listener] in
+                    guard let self, let listener, self.listener === listener else { return }
                     switch state {
                     case .ready:
                         self.running = true
-                        self.status = "SOCKS5 доступен на 127.0.0.1:\(port)"
+                        self.activePort = port
+                        self.status = "SOCKS5 слушает 127.0.0.1:\(port)"
+                    case .waiting(let error):
+                        self.status = "Ожидание сетевого интерфейса: \(error.localizedDescription)"
                     case .failed(let error):
-                        self.status = "Ошибка запуска: \(error.localizedDescription)"
-                        self.stop()
+                        self.stop(reason: "Не удалось запустить SOCKS5: \(error.localizedDescription)")
+                    case .cancelled:
+                        self.stop(reason: "Слушатель был отменён системой.")
                     default: break
                     }
                 }
@@ -208,9 +231,10 @@ private final class LocalSOCKS5Proxy: ObservableObject {
         }
     }
 
-    func stop() {
-        listener?.cancel()
+    func stop(reason: String = "Остановлен вручную") {
+        let old = listener
         listener = nil
+        old?.cancel()
         queue.async {
             let active = Array(self.connections.values)
             self.connections.removeAll()
@@ -218,13 +242,60 @@ private final class LocalSOCKS5Proxy: ObservableObject {
         }
         running = false
         sessions = 0
-        status = "Остановлен"
+        activePort = nil
+        status = reason
+    }
+
+    /// Test the listener with a real SOCKS5 no-auth greeting on loopback.
+    func selfTest() async throws -> String {
+        guard running, let port = activePort,
+              let endpointPort = NWEndpoint.Port(rawValue: port) else {
+            throw ModuleOperationError("Сначала запусти SOCKS5-сервер.")
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            let queue = DispatchQueue(label: "io.github.allinoneipa.socks5.selftest")
+            let probe = NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp)
+            var finished = false
+            func complete(_ result: Result<String, Error>) {
+                guard !finished else { return }
+                finished = true
+                probe.cancel()
+                continuation.resume(with: result)
+            }
+            probe.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    probe.send(content: Data([5, 1, 0]), completion: .contentProcessed { error in
+                        if let error { complete(.failure(error)); return }
+                        probe.receive(minimumIncompleteLength: 2, maximumLength: 2) {
+                            data, _, _, error in
+                            if let error { complete(.failure(error)); return }
+                            guard data == Data([5, 0]) else {
+                                complete(.failure(ModuleOperationError(
+                                    "Сервер не ответил на SOCKS5-приветствие."
+                                )))
+                                return
+                            }
+                            complete(.success("Проверка пройдена: порт \(port) отвечает по SOCKS5."))
+                        }
+                    })
+                case .failed(let error):
+                    complete(.failure(error))
+                default: break
+                }
+            }
+            probe.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + 6) {
+                complete(.failure(ModuleOperationError("Тайм-аут проверки SOCKS5 (6 секунд).")))
+            }
+        }
     }
 }
 
 struct TelegramProxyActionView: View {
     @Binding var values: [String: String]
-    @StateObject private var relay = LocalSOCKS5Proxy()
+    @ObservedObject private var relay = LocalSOCKS5Proxy.shared
+    @State private var testResult = ""
 
     var body: some View {
         ModuleActionCard(title: "Локальный SOCKS5-транспорт", symbol: "network") {
@@ -235,6 +306,13 @@ struct TelegramProxyActionView: View {
 
             ModuleResponse(value: relay.status + "\nАктивных подключений: \(relay.sessions)")
             if relay.running {
+                ModuleRunButton(title: "Проверить локальный порт", symbol: "checkmark.shield") {
+                    Task {
+                        do { testResult = try await relay.selfTest() }
+                        catch { testResult = "Проверка: \(error.localizedDescription)" }
+                    }
+                }
+                if !testResult.isEmpty { ModuleResponse(value: testResult) }
                 ModuleRunButton(title: "Остановить SOCKS5", symbol: "stop.fill") {
                     relay.stop()
                 }
@@ -256,6 +334,5 @@ struct TelegramProxyActionView: View {
                 .foregroundStyle(Palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .onDisappear { relay.stop() }
     }
 }

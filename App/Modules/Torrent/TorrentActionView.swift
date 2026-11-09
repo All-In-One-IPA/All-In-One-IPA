@@ -11,6 +11,8 @@ struct LocalTorrent: Identifiable {
     let state: String
     let downloadSpeed: Double
     let uploadSpeed: Double
+    let activePeers: Int
+    let error: String?
 
     init?(json: [String: Any]) {
         guard let id = json["id"] as? Int else { return nil }
@@ -22,10 +24,38 @@ struct LocalTorrent: Identifiable {
         uploaded = (stats["uploaded_bytes"] as? NSNumber)?.int64Value ?? 0
         progress = total > 0 ? min(1, max(0, Double(downloaded) / Double(total))) : 0
         state = stats["state"] as? String ?? "metadata"
+        error = stats["error"] as? String
         let live = stats["live"] as? [String: Any] ?? [:]
         downloadSpeed = ((live["download_speed"] as? [String: Any])?["mbps"] as? NSNumber)?.doubleValue ?? 0
         uploadSpeed = ((live["upload_speed"] as? [String: Any])?["mbps"] as? NSNumber)?.doubleValue ?? 0
+        let snapshot = live["snapshot"] as? [String: Any] ?? [:]
+        let peers = snapshot["peer_stats"] as? [String: Any] ?? [:]
+        activePeers = (peers["live_tcp"] as? Int ?? 0) + (peers["live_utp"] as? Int ?? 0)
     }
+}
+
+struct TorrentNetworkDiagnostics {
+    let tcpPeers: Int
+    let utpPeers: Int
+    let connecting: Int
+    let seen: Int
+    let queued: Int
+    let dhtAvailable: Bool
+    let speedMiB: Double
+
+    init?(json: [String: Any]) {
+        guard let session = json["session"] as? [String: Any],
+              let peers = session["peers"] as? [String: Any] else { return nil }
+        tcpPeers = peers["live_tcp"] as? Int ?? 0
+        utpPeers = peers["live_utp"] as? Int ?? 0
+        connecting = peers["connecting"] as? Int ?? 0
+        seen = peers["seen"] as? Int ?? 0
+        queued = peers["queued"] as? Int ?? 0
+        dhtAvailable = json["dht"] is [String: Any]
+        speedMiB = ((session["download_speed"] as? [String: Any])?["mbps"] as? NSNumber)?.doubleValue ?? 0
+    }
+
+    var totalConnected: Int { tcpPeers + utpPeers }
 }
 
 private struct TorrentExecution<Value>: @unchecked Sendable {
@@ -39,9 +69,11 @@ final class LocalTorrentEngine: ObservableObject {
     @Published private(set) var running = false
     @Published private(set) var busy = false
     @Published private(set) var torrents: [LocalTorrent] = []
+    @Published private(set) var diagnostics: TorrentNetworkDiagnostics?
     @Published private(set) var status = "Движок остановлен"
 
     private var downloadFolder: String?
+    private var isRefreshing = false
 
     private func execute<T>(_ action: @escaping @Sendable () throws -> T) async throws -> T {
         let wrapped = try await Task.detached(priority: .userInitiated) {
@@ -75,11 +107,18 @@ final class LocalTorrentEngine: ObservableObject {
     }
 
     func refresh() async {
-        guard running else { return }
+        guard running, !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
         do {
             let response = try await execute { try EmbeddedTorrentLibrary.list() }
             let data = response["torrents"] as? [[String: Any]] ?? []
             torrents = data.compactMap(LocalTorrent.init)
+            // An independent diagnostic request does not block active magnet
+            // resolution thanks to the Rust Arc engine and short mutex lock.
+            if let result = try? await execute({ try EmbeddedTorrentLibrary.diagnostics() }) {
+                diagnostics = TorrentNetworkDiagnostics(json: result)
+            }
         } catch {
             status = "Не удалось обновить список: \(error.localizedDescription)"
         }
@@ -132,6 +171,7 @@ final class LocalTorrentEngine: ObservableObject {
             try await execute { try EmbeddedTorrentLibrary.shutdown() }
         } catch { status = "Ошибка остановки: \(error.localizedDescription)" }
         torrents = []
+        diagnostics = nil
         downloadFolder = nil
         status = "Движок остановлен. При следующем запуске очередь восстановится."
     }
@@ -176,6 +216,36 @@ struct TorrentActionView: View {
             }
 
             ModuleResponse(value: engine.status)
+
+            if let stats = engine.diagnostics, engine.running {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label("Пиры: \(stats.totalConnected)", systemImage: "person.2")
+                        Spacer()
+                        Text("Подключаются: \(stats.connecting)")
+                    }
+                    HStack {
+                        Text("Обнаружено: \(stats.seen)")
+                        Spacer()
+                        Text("Очередь: \(stats.queued)")
+                    }
+                    HStack {
+                        Text("DHT: \(stats.dhtAvailable ? "включена" : "недоступна")")
+                        Spacer()
+                        Text("Сессия: \(speed(stats.speedMiB))")
+                    }
+                    if stats.totalConnected < 3 && !engine.torrents.isEmpty {
+                        Text("Активных пиров мало. Это может ограничивать скорость: проверь сиды, трекеры и сеть.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.amber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Palette.secondary)
+                .padding(12)
+                .background(Palette.background, in: RoundedRectangle(cornerRadius: 13))
+            }
 
             if engine.running {
                 ModuleField(title: "Magnet-ссылка", placeholder: "magnet:?xt=urn:btih:...", value: $magnet)
@@ -291,15 +361,32 @@ struct TorrentActionView: View {
             .foregroundStyle(Palette.secondary)
 
             HStack {
-                Label(String(format: "%.2f MiB/s", torrent.downloadSpeed), systemImage: "arrow.down")
+                Label(speed(torrent.downloadSpeed), systemImage: "arrow.down")
                 Spacer()
-                Label(String(format: "%.2f MiB/s", torrent.uploadSpeed), systemImage: "arrow.up")
+                Label(speed(torrent.uploadSpeed), systemImage: "arrow.up")
             }
             .font(.system(size: 11))
             .foregroundStyle(Palette.secondary)
+
+            if torrent.activePeers > 0 {
+                Text("Активных пиров: \(torrent.activePeers)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.secondary)
+            }
+            if let error = torrent.error, !error.isEmpty {
+                ModuleResponse(value: error, failed: true)
+            }
         }
         .padding(13)
         .background(Palette.background, in: RoundedRectangle(cornerRadius: 15))
+    }
+
+    private func speed(_ mib: Double) -> String {
+        let value = max(mib, 0)
+        if value < 1 {
+            return String(format: "%.1f KiB/s", value * 1024)
+        }
+        return String(format: "%.2f MiB/s", value)
     }
 
     private func format(_ bytes: Int64) -> String {

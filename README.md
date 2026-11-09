@@ -7,7 +7,7 @@ A personal, modular iOS utility app built with SwiftUI. One place for network to
 ## Interface
 
 - **Home** — overview, featured module and shortcuts
-- **Modules** — searchable categories and development statuses
+- **Modules** — independent horizontal module tabs, each with work/settings/about sections
 - **Activity** — reserved for future connection and task history
 - **Devices** — reserved for SSH, SFTP and monitoring connections
 - **Settings** — light / dark / system appearance and project information
@@ -39,11 +39,11 @@ Each non-keyboard module has a typed configuration, shared UI and its own **real
 
 | Module | Implemented minimum | Deferred |
 | --- | --- | --- |
-| Telegram / tg-ws-proxy | Local foreground SOCKS5/TCP relay | Flowseal MTProto/WebSocket and background service |
+| Telegram / tg-ws-proxy | Loopback-only SOCKS5/TCP relay with persistent frontend-independent lifecycle, exact startup errors, IPv6 destination support and built-in handshake self-test | Flowseal MTProto/WebSocket and reliable iOS background service |
 | SSH / SFTP | Password SSH command execution and read-only remote folder listing (Citadel) | Host-key pinning, full terminal and file transfers |
 | DNS Studio | Generate and export valid DoH/DoT `.mobileconfig` profiles | Profile signing and automated installation |
 | Media | Import audio/video from Files and play via AVPlayer | Advanced metadata, playlists |
-| Torrent | Embedded **librqbit 9.0.0** Rust static library, magnet/.torrent, P2P transfers and local files, pause/resume/remove | Real download test on iPhone, iOS background limits |
+| Torrent | Embedded **librqbit 9.0.0** Rust static library, magnet/.torrent, P2P transfers and local files, pause/resume/remove, live peer/DHT diagnostics and KiB/s speeds. Increased worker and peer limits; avoid serializing blocking magnet resolution and polling | Real-world throughput comparison on a well-seeded torrent and across networks, iOS background limits |
 | Mail | IMAPS/TLS inbox counts and native iOS mail composer | Message browsing, built-in SMTP |
 | Keyboard | Real offline RU/EN keyboard extension | Suggestions and gestures |
 | Beszel | Actual **Beszel WebSocket agent** (TOKEN + verified KEY challenge, CBOR responses with iPhone metrics) | Live hub testing and additional permitted metrics |
@@ -65,10 +65,12 @@ The main app has a keyboard setup and test page accessible from Modules and Sett
 
 ## Build
 
-The project uses **SwiftUI and XcodeGen**. The Xcode project is generated on demand:
+The project uses **SwiftUI, Rust/librqbit and XcodeGen**. The Xcode project is generated on demand. The iOS ARM64 static library must be built before Xcode compilation, and all release/CI builds run only in GitHub Actions:
 
 ```sh
 brew install xcodegen
+rustup target add aarch64-apple-ios
+cargo build --manifest-path Rust/TorrentBridge/Cargo.toml --target aarch64-apple-ios --release
 xcodegen generate
 xcodebuild -project AllInOne.xcodeproj -scheme AllInOne -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath build \
