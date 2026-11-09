@@ -7,8 +7,8 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "2"
     SUPPORTS_MACCATALYST: "NO"
 targets:
   AllInOne:
@@ -19,6 +19,9 @@ targets:
       - path: App
         excludes:
           - "**/*.md"
+    dependencies:
+      - target: AllInOneKeyboard
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "io.github.allinoneipa.app"
@@ -31,6 +34,31 @@ targets:
         CODE_SIGN_STYLE: "Automatic"
         SWIFT_EMIT_LOC_STRINGS: "YES"
         ENABLE_PREVIEWS: "YES"
+  AllInOneKeyboard:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: KeyboardExtension
+    info:
+      path: KeyboardExtension/Info.plist
+      properties:
+        CFBundleDisplayName: "All-In-One Keyboard"
+        NSExtension:
+          NSExtensionPointIdentifier: "com.apple.keyboard-service"
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).KeyboardViewController"
+          NSExtensionAttributes:
+            PrimaryLanguage: "ru-RU"
+            IsASCIICapable: true
+            RequestsOpenAccess: false
+            PrefersRightToLeft: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "io.github.allinoneipa.app.keyboard"
+        PRODUCT_NAME: "AllInOneKeyboard"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        CODE_SIGN_STYLE: "Automatic"
+        SKIP_INSTALL: "YES"
 schemes:
   AllInOne:
     build:
