@@ -27,13 +27,14 @@ enum ModuleCategory: String, CaseIterable, Identifiable {
 }
 
 enum ModuleStatus: String {
-    case soon, planned, research
+    case soon, planned, research, beta
 
     var title: String {
         switch self {
         case .soon: "Скоро"
         case .planned: "В планах"
         case .research: "Изучаем"
+        case .beta: "Бета"
         }
     }
 
@@ -42,6 +43,7 @@ enum ModuleStatus: String {
         case .soon: Palette.cyan
         case .planned: Palette.secondary
         case .research: Palette.amber
+        case .beta: Palette.green
         }
     }
 }
@@ -84,9 +86,9 @@ enum ModuleCatalog {
               description: "Персональный почтовый клиент с поддержкой стандартных почтовых протоколов.",
               plannedFeatures: ["IMAP и SMTP", "Несколько аккаунтов", "Поиск и вложения"]),
         .init(id: "keyboard", title: "Клавиатура", subtitle: "Собственная раскладка",
-              symbol: "keyboard.fill", category: .system, status: .research,
-              description: "Системное Keyboard Extension с настраиваемыми клавишами и словарём. Отдельно проверим подпись через бесплатный Apple ID.",
-              plannedFeatures: ["Раскладки и оформление", "Текстовые сокращения", "Системное расширение"]),
+              symbol: "keyboard.fill", category: .system, status: .beta,
+              description: "Системное расширение iOS с русской и английской раскладками, цифрами, символами и локальным оформлением. Совместимость с xtool проверяется.",
+              plannedFeatures: ["Русская и английская раскладки", "Регистр и Caps Lock", "Цифры, символы, оформление без Full Access"]),
         .init(id: "beszel", title: "Beszel", subtitle: "Мониторинг устройств",
               symbol: "chart.xyaxis.line", category: .remote, status: .planned,
               description: "Клиент для просмотра мониторинга Beszel. Полноценный агент самого iPhone ограничен системой.",

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     let openModules: () -> Void
-    private let highlights = ["ssh", "dns", "player", "torrent"]
+    private let highlights = ["keyboard", "ssh", "dns", "player"]
 
     var body: some View {
         ZStack {
@@ -27,7 +27,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Eyebrow(text: "ALL-IN-ONE · 0.1")
+                Eyebrow(text: "ALL-IN-ONE · 0.2")
                 Text("Главная")
                     .font(.system(size: 35, weight: .bold, design: .rounded))
                     .tracking(-0.9)
@@ -62,7 +62,7 @@ struct HomeView: View {
                     .offset(x: 164, y: -118)
 
                 VStack(alignment: .leading, spacing: 15) {
-                    Label("ПЕРВЫЙ ЭТАП", systemImage: "circle.dotted")
+                    Label("РАЗВИВАЕМСЯ", systemImage: "circle.dotted")
                         .font(.system(size: 10, weight: .bold))
                         .tracking(1.2)
                         .foregroundStyle(Palette.cyan)
@@ -144,7 +144,11 @@ struct HomeView: View {
                     ForEach(highlights, id: \.self) { id in
                         let module = ModuleCatalog.find(id)
                         NavigationLink {
-                            ModuleDetailView(module: module)
+                            if module.id == "keyboard" {
+                                KeyboardSettingsView()
+                            } else {
+                                ModuleDetailView(module: module)
+                            }
                         } label: {
                             VStack(alignment: .leading, spacing: 17) {
                                 ModuleGlyph(module: module, size: 44)
@@ -179,7 +183,11 @@ struct HomeView: View {
             ForEach(["keyboard", "mail", "beszel"], id: \.self) { id in
                 let module = ModuleCatalog.find(id)
                 NavigationLink {
-                    ModuleDetailView(module: module)
+                    if module.id == "keyboard" {
+                        KeyboardSettingsView()
+                    } else {
+                        ModuleDetailView(module: module)
+                    }
                 } label: {
                     HStack(spacing: 12) {
                         Circle().fill(module.category.tint).frame(width: 6, height: 6)

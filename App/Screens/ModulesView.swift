@@ -33,7 +33,7 @@ struct ModulesView: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Palette.secondary)
                         Spacer()
-                        Text("0 готовы к работе")
+                        Text("\(ModuleCatalog.all.filter { $0.status == .beta }.count) в бета-версии")
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.secondary)
                     }

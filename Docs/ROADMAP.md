@@ -10,8 +10,18 @@
 - [x] Local-only saved device endpoint cards
 - [x] GitHub Actions macOS CI and unsigned IPA release pipeline
 - [x] Release triggers: version tag, manual dispatch, published release
-- [ ] Verify compile and install on an actual iPhone
-- [ ] Test xtool installation, profile refresh and data persistence
+- [x] Verify v0.1.0 compile and install on an iPhone 11 via xtool
+- [ ] Verify weekly profile refresh and data persistence
+
+## v0.2.0 — first real module
+
+- [x] Add a real iOS Keyboard Extension target with RU/EN layout
+- [x] Shift, Caps Lock, numbers, symbols, repeat backspace and keyboard switching
+- [x] Local light/dark keyboard theme; no Full Access requirement
+- [x] Setup guidance and a text input test screen in the main app
+- [ ] Verify extension builds in GitHub Actions
+- [ ] Verify free-team provisioning and launch on iPhone 11 via xtool
+- [ ] Refine layout, landscape behavior and VoiceOver after device testing
 
 ## Next — practical utility modules
 
@@ -24,7 +34,7 @@
 
 - Port **Flowseal/tg-ws-proxy**, respecting its MIT license and keeping its functionality distinct from optional remote Telemt relays.
 - Prototype local MTProto / SOCKS5 endpoint and investigate iOS lifecycle and App Intents. Location-based background operation is an experiment, not a guaranteed daemon.
-- Keyboard extension and free provisioning compatibility checks.
+- Keyboard extension: add cursor control, customizable rows, text shortcuts, languages and optional dictionaries after initial testing.
 - Torrent engine with explicit foreground/background limitations; remote download management.
 - IMAP/SMTP mail, Beszel dashboard, Docker/remote API clients, archives and Network Lab.
 - Multiple languages, comprehensive accessibility and usability testing.

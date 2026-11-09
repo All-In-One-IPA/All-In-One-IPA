@@ -39,9 +39,38 @@ struct SettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 15) {
+                        SectionHeading(title: "Клавиатура")
+                        NavigationLink {
+                            KeyboardSettingsView()
+                        } label: {
+                            HStack(spacing: 13) {
+                                Image(systemName: "keyboard.fill")
+                                    .foregroundStyle(Palette.coral)
+                                    .frame(width: 34, height: 34)
+                                    .background(Palette.coral.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("All-In-One Keyboard")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(Palette.ink)
+                                    Text("Подключить и протестировать")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Palette.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Palette.secondary)
+                            }
+                            .padding(16)
+                            .surfaceCard(radius: 18)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    VStack(alignment: .leading, spacing: 15) {
                         SectionHeading(title: "О приложении")
                         infoRow(symbol: "square.stack.3d.up", title: "Версия", value: version)
-                        infoRow(symbol: "hammer", title: "Этап", value: "Интерфейс")
+                        infoRow(symbol: "hammer", title: "Этап", value: "Модули")
                         infoRow(symbol: "iphone", title: "Платформа", value: "iOS 17+")
                         Link(destination: URL(string: "https://github.com/All-In-One-IPA/All-In-One-IPA")!) {
                             HStack(spacing: 13) {

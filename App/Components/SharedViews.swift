@@ -63,7 +63,11 @@ struct ModuleListRow: View {
 
     var body: some View {
         NavigationLink {
-            ModuleDetailView(module: module)
+            if module.id == "keyboard" {
+                KeyboardSettingsView()
+            } else {
+                ModuleDetailView(module: module)
+            }
         } label: {
             HStack(spacing: 14) {
                 ModuleGlyph(module: module, size: 52)
