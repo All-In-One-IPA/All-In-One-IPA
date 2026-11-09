@@ -1,0 +1,14 @@
+.DS_Store
+.swiftpm/
+.build/
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+AllInOne.xcodeproj/
+App/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+*.ipa
+*.mobileprovision
+*.p12
+.env
