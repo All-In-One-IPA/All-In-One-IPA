@@ -51,3 +51,13 @@ The public CI workflow builds *unsigned* IPAs. It must not handle Apple ID crede
 - [x] Release workflow chained to successful CI on code changes in main
 - [x] Automatic semantic patch increments, unsigned IPA distribution and SHA256 verification
 - [ ] Implement each real module independently with secure credentials and tests
+
+## Functional MVP correction
+
+The former configuration-only screens were not functional module foundations. New action screens now execute real operations (SSH/SFTP, qBittorrent API, Beszel API, IMAP/TLS, HTTP/TCP/DNS, Files/AVPlayer, ZIP, DNS mobileconfig, local SOCKS5 and local quick actions).
+
+- [ ] Hard-test all actions on an iPhone with matching servers/accounts
+- [ ] Implement and verify SSH known-host fingerprints before regular use
+- [ ] Complete **Flowseal/tg-ws-proxy** MTProto/WebSocket port (current SOCKS5 fallback is not equivalent)
+- [ ] Replace IMAP status-only probe with message list, attachment fetching and own SMTP sending
+- [ ] Add security tests, error isolation and fully accessible controls

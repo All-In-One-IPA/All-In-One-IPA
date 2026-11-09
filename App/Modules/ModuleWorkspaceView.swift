@@ -24,9 +24,7 @@ struct ModuleWorkspaceView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    if module.id == "network" {
-                        HTTPDiagnosticView()
-                    }
+                    ModuleActionPanel(moduleID: module.id, values: $values)
                     forEachGroups
                     saveControls
                     milestones

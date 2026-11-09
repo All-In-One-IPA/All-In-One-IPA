@@ -93,7 +93,7 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Eyebrow(text: "ПРИВАТНОСТЬ")
-                        Text("Никаких внешних аккаунтов, аналитики или фоновых сервисов в этой версии. Сохранённые адреса устройств остаются на iPhone.")
+                        Text("Сетевые модули выполняют запросы только по твоему действию. Токены хранятся в Keychain, локальные настройки — на iPhone. Аналитика и облачная синхронизация не добавлены.")
                             .font(.system(size: 13))
                             .foregroundStyle(Palette.secondary)
                             .lineSpacing(4)

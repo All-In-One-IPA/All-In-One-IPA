@@ -10,6 +10,13 @@ settings:
     MARKETING_VERSION: "0.2.0"
     CURRENT_PROJECT_VERSION: "2"
     SUPPORTS_MACCATALYST: "NO"
+packages:
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel
+    exactVersion: 0.12.1
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    exactVersion: 0.9.20
 targets:
   AllInOne:
     type: application
@@ -22,10 +29,15 @@ targets:
     dependencies:
       - target: AllInOneKeyboard
         embed: true
+      - package: Citadel
+      - package: ZIPFoundation
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "io.github.allinoneipa.app"
         PRODUCT_NAME: "AllInOne"
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Для SSH, SFTP, локального SOCKS5 и других сетевых подключений к выбранным пользователем устройствам."
+        INFOPLIST_KEY_UIFileSharingEnabled: "YES"
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: "YES"
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_KEY_CFBundleDisplayName: "All-In-One"
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"

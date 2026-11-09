@@ -212,7 +212,7 @@ struct HomeView: View {
     }
 
     private var footer: some View {
-        Text("INTERFACE PREVIEW  /  NO ACTIVE SERVICES")
+        Text("MODULE MVP  /  FOREGROUND SERVICES ONLY")
             .font(.system(size: 10, weight: .medium, design: .monospaced))
             .tracking(0.6)
             .foregroundStyle(Palette.secondary)

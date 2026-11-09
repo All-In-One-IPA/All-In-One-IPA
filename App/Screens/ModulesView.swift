@@ -22,7 +22,7 @@ struct ModulesView: View {
                         Text("Модули")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundStyle(Palette.ink)
-                        Text("Инструменты, которые будут жить здесь.")
+                        Text("Инструменты с реальными действиями — дорабатываем по отдельности.")
                             .font(.system(size: 14))
                             .foregroundStyle(Palette.secondary)
                     }

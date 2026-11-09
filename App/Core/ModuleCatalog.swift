@@ -35,7 +35,7 @@ enum ModuleStatus: String {
         case .planned: "В планах"
         case .research: "Изучаем"
         case .beta: "Бета"
-        case .foundation: "Каркас"
+        case .foundation: "MVP"
         }
     }
 
@@ -45,7 +45,7 @@ enum ModuleStatus: String {
         case .planned: Palette.secondary
         case .research: Palette.amber
         case .beta: Palette.green
-        case .foundation: Palette.amber
+        case .foundation: Palette.green
         }
     }
 }

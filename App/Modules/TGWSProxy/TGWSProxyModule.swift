@@ -5,11 +5,11 @@ enum TGWSProxyModule {
     static let blueprint = ModuleBlueprint(
         id: "tgws",
         headline: "Локальный прокси Telegram",
-        description: "Основа для будущего переноса Flowseal/tg-ws-proxy. Здесь пока сохраняются параметры, а сам прокси не запускается.",
+        description: "Рабочий локальный SOCKS5-релей (TCP) для тестов в активном приложении. MTProto-over-WebSocket протокол Flowseal пока в разработке.",
         groups: [
         ModuleGroup(title: "Локальная точка", inputs: [
-            ModuleInput("listenPort", "Порт на устройстве", "1080", .port, initialValue: "1080"),
-            ModuleInput("protocol", "Протокол Telegram", "MTProto / SOCKS5", .options(["MTProto", "SOCKS5"]), initialValue: "MTProto")
+            ModuleInput("listenPort", "Порт SOCKS5 на устройстве", "1080", .port, initialValue: "1080"),
+            ModuleInput("protocol", "Рабочий режим", "SOCKS5 (прямой)", .options(["SOCKS5 (прямой)"]), initialValue: "SOCKS5 (прямой)")
         ]),
         ModuleGroup(title: "Подключение", inputs: [
             ModuleInput("upstream", "Адрес WebSocket", "wss://example.com/ws", .url, initialValue: ""),

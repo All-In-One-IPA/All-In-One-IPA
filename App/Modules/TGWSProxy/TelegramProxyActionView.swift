@@ -1,0 +1,261 @@
+import SwiftUI
+import Network
+
+/// A foreground-only local SOCKS5/TCP relay. This is a genuine network
+/// operation, but is NOT yet Flowseal's MTProto-over-WebSocket transport.
+private final class SOCKS5Session {
+    private enum Phase { case greeting, request, connecting, relay }
+    private let client: NWConnection
+    private let queue: DispatchQueue
+    private let finished: () -> Void
+    private var remote: NWConnection?
+    private var phase: Phase = .greeting
+    private var buffer = Data()
+    private var stopped = false
+
+    init(client: NWConnection, queue: DispatchQueue, finished: @escaping () -> Void) {
+        self.client = client
+        self.queue = queue
+        self.finished = finished
+        client.stateUpdateHandler = { [weak self] state in
+            if case .failed = state { self?.stop() }
+        }
+        client.start(queue: queue)
+        readHandshake()
+    }
+
+    func stop() {
+        guard !stopped else { return }
+        stopped = true
+        client.cancel()
+        remote?.cancel()
+        finished()
+    }
+
+    private func sendClient(_ bytes: [UInt8]) {
+        client.send(content: Data(bytes), completion: .contentProcessed { [weak self] error in
+            if error != nil { self?.stop() }
+        })
+    }
+
+    private func readHandshake() {
+        guard !stopped, phase != .relay else { return }
+        client.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, done, error in
+            guard let self else { return }
+            if let data { self.buffer.append(data) }
+            if self.buffer.count > 65536 || done || error != nil { self.stop(); return }
+            self.parseHandshake()
+            if !self.stopped, self.phase != .relay {
+                self.readHandshake()
+            }
+        }
+    }
+
+    private func parseHandshake() {
+        let bytes = [UInt8](buffer)
+        switch phase {
+        case .greeting:
+            guard bytes.count >= 2 else { return }
+            guard bytes[0] == 5, bytes.count >= 2 + Int(bytes[1]) else {
+                if bytes[0] != 5 { stop() }
+                return
+            }
+            let accepted = bytes.dropFirst(2).prefix(Int(bytes[1])).contains(UInt8(0))
+            buffer.removeFirst(2 + Int(bytes[1]))
+            sendClient([5, accepted ? 0 : 255])
+            if accepted {
+                phase = .request
+                parseHandshake()
+            } else {
+                stop()
+            }
+        case .request:
+            guard bytes.count >= 4 else { return }
+            guard bytes[0] == 5, bytes[1] == 1, bytes[2] == 0 else {
+                sendClient([5, 7, 0, 1, 0, 0, 0, 0, 0, 0])
+                stop()
+                return
+            }
+
+            let host: String
+            let requestLength: Int
+            let portOffset: Int
+            switch bytes[3] {
+            case 1:
+                guard bytes.count >= 10 else { return }
+                host = bytes[4..<8].map { String($0) }.joined(separator: ".")
+                portOffset = 8
+                requestLength = 10
+            case 3:
+                guard bytes.count >= 5 else { return }
+                let length = Int(bytes[4])
+                guard length > 0, bytes.count >= 5 + length + 2 else { return }
+                host = String(decoding: bytes[5..<(5 + length)], as: UTF8.self)
+                portOffset = 5 + length
+                requestLength = 5 + length + 2
+            default:
+                sendClient([5, 8, 0, 1, 0, 0, 0, 0, 0, 0])
+                stop()
+                return
+            }
+            let port = UInt16(bytes[portOffset]) << 8 | UInt16(bytes[portOffset + 1])
+            guard let endpointPort = NWEndpoint.Port(rawValue: port), port > 0 else {
+                stop()
+                return
+            }
+            buffer.removeFirst(requestLength)
+            phase = .connecting
+            let upstream = NWConnection(host: NWEndpoint.Host(host), port: endpointPort, using: .tcp)
+            remote = upstream
+            upstream.stateUpdateHandler = { [weak self] state in
+                guard let self, !self.stopped else { return }
+                switch state {
+                case .ready:
+                    self.sendClient([5, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+                    self.phase = .relay
+                    if !self.buffer.isEmpty {
+                        upstream.send(content: self.buffer, completion: .contentProcessed { error in
+                            if error != nil { self.stop() }
+                        })
+                        self.buffer.removeAll()
+                    }
+                    self.pump(self.client, to: upstream)
+                    self.pump(upstream, to: self.client)
+                case .failed:
+                    self.sendClient([5, 5, 0, 1, 0, 0, 0, 0, 0, 0])
+                    self.stop()
+                default: break
+                }
+            }
+            upstream.start(queue: queue)
+        case .connecting, .relay:
+            return
+        }
+    }
+
+    private func pump(_ incoming: NWConnection, to outgoing: NWConnection) {
+        guard !stopped else { return }
+        incoming.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, done, error in
+            guard let self, !self.stopped else { return }
+            if let data, !data.isEmpty {
+                outgoing.send(content: data, completion: .contentProcessed { sendError in
+                    if sendError != nil { self.stop() }
+                    else { self.pump(incoming, to: outgoing) }
+                })
+            } else if done || error != nil {
+                self.stop()
+            } else {
+                self.pump(incoming, to: outgoing)
+            }
+        }
+    }
+}
+
+private final class LocalSOCKS5Proxy: ObservableObject {
+    @Published private(set) var running = false
+    @Published private(set) var status = "Остановлен"
+    @Published private(set) var sessions = 0
+
+    private let queue = DispatchQueue(label: "io.github.allinoneipa.socks5")
+    private var listener: NWListener?
+    private var connections: [UUID: SOCKS5Session] = [:]
+
+    func start(port: UInt16) {
+        guard !running, listener == nil else { return }
+        guard let endpointPort = NWEndpoint.Port(rawValue: port), port > 0 else {
+            status = "Укажи порт от 1 до 65535."
+            return
+        }
+        do {
+            let params = NWParameters.tcp
+            params.allowLocalEndpointReuse = true
+            params.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host("127.0.0.1"), port: endpointPort)
+            let listener = try NWListener(using: params)
+            listener.newConnectionHandler = { [weak self] connection in
+                guard let self else { connection.cancel(); return }
+                let identifier = UUID()
+                self.connections[identifier] = SOCKS5Session(
+                    client: connection, queue: self.queue,
+                    finished: { [weak self] in
+                        guard let self else { return }
+                        self.connections.removeValue(forKey: identifier)
+                        let count = self.connections.count
+                        Task { @MainActor in self.sessions = count }
+                    }
+                )
+                let count = self.connections.count
+                Task { @MainActor in self.sessions = count }
+            }
+            listener.stateUpdateHandler = { [weak self] state in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    switch state {
+                    case .ready:
+                        self.running = true
+                        self.status = "SOCKS5 доступен на 127.0.0.1:\(port)"
+                    case .failed(let error):
+                        self.status = "Ошибка запуска: \(error.localizedDescription)"
+                        self.stop()
+                    default: break
+                    }
+                }
+            }
+            self.listener = listener
+            listener.start(queue: queue)
+            status = "Запуск сервера..."
+        } catch {
+            status = error.localizedDescription
+        }
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+        queue.async {
+            let active = Array(self.connections.values)
+            self.connections.removeAll()
+            for session in active { session.stop() }
+        }
+        running = false
+        sessions = 0
+        status = "Остановлен"
+    }
+}
+
+struct TelegramProxyActionView: View {
+    @Binding var values: [String: String]
+    @StateObject private var relay = LocalSOCKS5Proxy()
+
+    var body: some View {
+        ModuleActionCard(title: "Локальный SOCKS5-транспорт", symbol: "network") {
+            Text("Рабочий TCP-релей без авторизации, привязанный к 127.0.0.1. Он действует только пока iOS позволяет приложению работать. Это пока НЕ MTProto-over-WebSocket из Flowseal/tg-ws-proxy.")
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ModuleResponse(value: relay.status + "\nАктивных подключений: \(relay.sessions)")
+            if relay.running {
+                ModuleRunButton(title: "Остановить SOCKS5", symbol: "stop.fill") {
+                    relay.stop()
+                }
+                if let port = UInt16(values["listenPort"] ?? "1080"),
+                   let url = URL(string: "tg://socks?server=127.0.0.1&port=\(port)") {
+                    Link(destination: url) {
+                        Label("Передать настройки прокси в Telegram", systemImage: "paperplane.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.cyan)
+                    }
+                }
+            } else {
+                ModuleRunButton(title: "Запустить локальный SOCKS5", symbol: "play.fill") {
+                    relay.start(port: UInt16(values["listenPort"] ?? "1080") ?? 0)
+                }
+            }
+            Text("При переходе в Telegram iOS может приостановить приложение и оборвать соединение. Постоянная работа в фоне требует отдельного исследования системных механизмов.")
+                .font(.system(size: 11))
+                .foregroundStyle(Palette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .onDisappear { relay.stop() }
+    }
+}

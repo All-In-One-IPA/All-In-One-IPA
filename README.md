@@ -2,7 +2,7 @@
 
 A personal, modular iOS utility app built with SwiftUI. One place for network tools, remote access, media, downloads, and everyday utilities.
 
-> **Status: early development.** Version 0.2.0 adds a real offline iOS keyboard extension (RU/EN) to the existing interface. Other tools remain planned and are explicitly marked.
+> **Status: functional minimums under development.** The next build provides native operations for every module. Each remains an early MVP, not a complete production-grade client. Some actions depend on external servers and are limited by iOS foreground execution.
 
 ## Interface
 
@@ -31,7 +31,25 @@ The planned tg-ws-proxy integration specifically refers to **Flowseal/tg-ws-prox
 
 ## Module foundations
 
-Every non-keyboard module has a separate blueprint in `App/Modules/<Module>/`, its own typed configuration fields, a SwiftUI workspace and local save/reset controls. These are **not** operational network services yet. Sensitive credentials intentionally are not entered here; future authentication belongs in Keychain. Network Lab additionally includes an explicit, working HTTPS HEAD probe.
+Each non-keyboard module has a typed configuration, shared UI and its own **real** action handler in `App/Modules/<Module>/*ActionView.swift`. Implemented minimums:
+
+| Module | Implemented minimum | Deferred |
+| --- | --- | --- |
+| Telegram / tg-ws-proxy | Local foreground SOCKS5/TCP relay | Flowseal MTProto/WebSocket and background service |
+| SSH / SFTP | Password SSH command execution and read-only remote folder listing (Citadel) | Host-key pinning, full terminal and file transfers |
+| DNS Studio | Generate and export valid DoH/DoT `.mobileconfig` profiles | Profile signing and automated installation |
+| Media | Import audio/video from Files and play via AVPlayer | Advanced metadata, playlists |
+| Torrent | Remote qBittorrent HTTPS login, list tasks, add magnet | On-device P2P engine |
+| Mail | IMAPS/TLS inbox counts and native iOS mail composer | Message browsing, built-in SMTP |
+| Keyboard | Real offline RU/EN keyboard extension | Suggestions and gestures |
+| Beszel | PocketBase login and systems listing | Detailed charts/real-time updates |
+| Network Lab | HTTP HEAD, DNS and TCP diagnostics | Packet capture, history |
+| Archives | ZIP import, extract, create and export | 7z, TAR |
+| Server Tools | Authenticated JSON HTTPS API requests | Docker-specific API client/UI |
+| Automation | Save, run and delete manual local actions | Background triggers and App Intents |
+
+**Security:** Sensitive secrets do not enter `UserDefaults`. Server API tokens can be stored in device-only Keychain. The SSH experimental connection currently accepts host keys without authentication of the host — **do not use it on untrusted networks** until known-host verification is implemented. The SOCKS5 relay is unauthenticated and is intended to listen on device loopback only; it does not implement the Flowseal protocol. Third-party services run only when triggered by the user.
+
 
 ## Keyboard
 
