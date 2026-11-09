@@ -285,7 +285,7 @@ final class KeyboardViewController: UIInputViewController {
         switch page {
         case .letters:
             let layout = language == .ru
-                ? ["йцукенгшщзхъ", "фывапролджэ", "ячсмитьбю"]
+                ? ["ёйцукенгшщзхъ", "фывапролджэ", "ячсмитьбю"]
                 : ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
             let caps = shift != .off
             let keyRows = layout.map { line in
@@ -378,12 +378,10 @@ final class KeyboardViewController: UIInputViewController {
             render()
         case .shift:
             let now = Date().timeIntervalSince1970
-            if shift == .once && now - lastShiftTap < 0.4 {
-                shift = .locked
-            } else if shift == .off {
-                shift = .once
+            if now - lastShiftTap < 0.4 {
+                shift = shift == .locked ? .off : .locked
             } else {
-                shift = .off
+                shift = shift == .off ? .once : .off
             }
             lastShiftTap = now
             render()
@@ -397,7 +395,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func adjustShift() {
         guard shift != .locked else { return }
-        let context = textDocumentProxy.documentContextBeforeInput ?? ""
+        guard let context = textDocumentProxy.documentContextBeforeInput else { return }
         let startsSentence = context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             context.range(of: "[.!?]\\s*$", options: .regularExpression) != nil
         if startsSentence { shift = .once }
