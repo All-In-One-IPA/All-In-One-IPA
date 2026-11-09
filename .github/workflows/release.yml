@@ -80,6 +80,16 @@ jobs:
           set -euo pipefail
           APP="$RUNNER_TEMP/aio-release/Build/Products/Release-iphoneos/AllInOne.app"
           test -d "$APP"
+          EXT="$APP/PlugIns/AllInOneKeyboard.appex"
+          test -d "$EXT"
+          /usr/bin/python3 - "$EXT/Info.plist" <<'PY'
+          import plistlib, sys
+          with open(sys.argv[1], 'rb') as fh:
+              info = plistlib.load(fh)
+          assert info['NSExtension']['NSExtensionPointIdentifier'] == 'com.apple.keyboard-service'
+          assert info['NSExtension']['NSExtensionAttributes']['RequestsOpenAccess'] is False
+          print('Verified keyboard extension in unsigned IPA payload')
+          PY
           mkdir -p "$RUNNER_TEMP/aio-package/Payload"
           cp -R "$APP" "$RUNNER_TEMP/aio-package/Payload/"
           IPA="$GITHUB_WORKSPACE/All-In-One-${VERSION}-unsigned.ipa"

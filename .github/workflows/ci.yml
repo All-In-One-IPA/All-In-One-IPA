@@ -29,3 +29,18 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/aio-ci" \
             CODE_SIGNING_ALLOWED=NO build
+      - name: Check embedded keyboard extension
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/aio-ci/Build/Products/Debug-iphoneos/AllInOne.app"
+          EXT="$APP/PlugIns/AllInOneKeyboard.appex"
+          test -d "$EXT"
+          /usr/bin/python3 - "$EXT/Info.plist" <<'PY'
+          import plistlib, sys
+          with open(sys.argv[1], 'rb') as fh:
+              info = plistlib.load(fh)
+          extension = info['NSExtension']
+          assert extension['NSExtensionPointIdentifier'] == 'com.apple.keyboard-service'
+          assert extension['NSExtensionAttributes']['RequestsOpenAccess'] is False
+          print('Verified embedded keyboard, no Full Access request')
+          PY

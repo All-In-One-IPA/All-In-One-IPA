@@ -76,6 +76,7 @@ final class KeyboardViewController: UIInputViewController {
     private var deleteTimer: Timer?
     private var contentStack: UIStackView?
     private var keyboardHeight: NSLayoutConstraint?
+    private var lastInputType: UIKeyboardType?
 
     private var dark: Bool {
         customTheme ?? (traitCollection.userInterfaceStyle == .dark)
@@ -105,8 +106,12 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        let previousShift = shift
+        let previousType = lastInputType
         adjustShift()
-        render()
+        if previousShift != shift || previousType != textDocumentProxy.keyboardType {
+            render()
+        }
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -128,7 +133,7 @@ final class KeyboardViewController: UIInputViewController {
         let column = UIStackView()
         column.axis = .vertical
         column.spacing = 7
-        column.distribution = .fill
+        column.distribution = .equalSpacing
         column.alignment = .fill
         column.translatesAutoresizingMaskIntoConstraints = false
         column.isLayoutMarginsRelativeArrangement = true
@@ -146,6 +151,7 @@ final class KeyboardViewController: UIInputViewController {
             column.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         contentStack = column
+        lastInputType = textDocumentProxy.keyboardType
         primaryLanguage = language.locale
     }
 
@@ -294,7 +300,7 @@ final class KeyboardViewController: UIInputViewController {
             return [
                 characterKeys(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]),
                 characterKeys(["@", "#", "$", "%", "&", "-", "+", "(", ")", "/"]),
-                [.function("=\\<", .symbols, weight: 1.35)] +
+                [.function("#+=", .symbols, weight: 1.35)] +
                     characterKeys(["*", "\"", ":", ";", "!", "?", "'"]) +
                     [.function("⌫", .backspace, weight: 1.35)],
                 bottomRow()
