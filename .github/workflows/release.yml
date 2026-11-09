@@ -89,14 +89,11 @@ jobs:
         run: xcodegen generate
       - name: Configure Rust for iPhone ARM64
         if: steps.meta.outputs.skip != 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-      - name: Cache Rust dependencies
-        if: steps.meta.outputs.skip != 'true'
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: Rust/TorrentBridge
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add aarch64-apple-ios
       - name: Build embedded librqbit static library
         if: steps.meta.outputs.skip != 'true'
         run: |
