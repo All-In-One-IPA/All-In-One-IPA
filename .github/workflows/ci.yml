@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-build:
+    name: Unsigned iOS build
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate app icon
+        run: swift scripts/make-icon.swift
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Compile application
+        run: |
+          set -euo pipefail
+          xcodebuild -project AllInOne.xcodeproj \
+            -scheme AllInOne -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/aio-ci" \
+            CODE_SIGNING_ALLOWED=NO build

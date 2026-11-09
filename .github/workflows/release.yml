@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. v0.1.0"
+        required: true
+        type: string
+      mode:
+        description: "Publish behavior"
+        required: true
+        default: prerelease
+        type: choice
+        options:
+          - artifact
+          - draft
+          - prerelease
+          - stable
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aio-release-${{ github.event.release.tag_name || inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release version
+        id: meta
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+          PUBLISHED_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            release) VERSION="$PUBLISHED_TAG" ;;
+            workflow_dispatch) VERSION="$MANUAL_VERSION" ;;
+            push) VERSION="$GITHUB_REF_NAME" ;;
+          esac
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be vMAJOR.MINOR.PATCH, optionally with a prerelease suffix" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "number=${VERSION#v}" >> "$GITHUB_OUTPUT"
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate app icon
+        run: swift scripts/make-icon.swift
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build application without signing
+        env:
+          APP_VERSION: ${{ steps.meta.outputs.number }}
+        run: |
+          set -euo pipefail
+          xcodebuild -project AllInOne.xcodeproj \
+            -scheme AllInOne -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/aio-release" \
+            MARKETING_VERSION="$APP_VERSION" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA
+        id: package
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/aio-release/Build/Products/Release-iphoneos/AllInOne.app"
+          test -d "$APP"
+          mkdir -p "$RUNNER_TEMP/aio-package/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/aio-package/Payload/"
+          IPA="$GITHUB_WORKSPACE/All-In-One-${VERSION}-unsigned.ipa"
+          (cd "$RUNNER_TEMP/aio-package" && zip -qry "$IPA" Payload)
+          shasum -a 256 "$IPA" | sed "s|$GITHUB_WORKSPACE/||" > "$GITHUB_WORKSPACE/SHA256SUMS.txt"
+          echo "ipa=$IPA" >> "$GITHUB_OUTPUT"
+      - name: Upload Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa-${{ steps.meta.outputs.version }}
+          path: |
+            ${{ steps.package.outputs.ipa }}
+            SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish or update GitHub release
+        if: github.event_name != 'workflow_dispatch' || inputs.mode != 'artifact'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          MODE: ${{ inputs.mode }}
+          IPA: ${{ steps.package.outputs.ipa }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" "$IPA" SHA256SUMS.txt --clobber
+            exit 0
+          fi
+          FLAGS=(--target "$GITHUB_SHA" --title "$VERSION" --generate-notes)
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            case "$MODE" in
+              draft) FLAGS+=(--draft) ;;
+              prerelease) FLAGS+=(--prerelease) ;;
+              stable) ;;
+              *) echo "Unsupported release mode" >&2; exit 1 ;;
+            esac
+          elif [[ "$VERSION" == *-* ]]; then
+            FLAGS+=(--prerelease)
+          fi
+          gh release create "$VERSION" "$IPA" SHA256SUMS.txt "${FLAGS[@]}"
