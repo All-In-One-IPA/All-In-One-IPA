@@ -20,3 +20,7 @@ lto = false
 codegen-units = 8
 panic = "abort"
 strip = "debuginfo"
+
+# Apple/iOS compatibility fix: do not call Linux SO_BINDTODEVICE on iOS.
+[patch.crates-io]
+librqbit-dualstack-sockets = { path = "../vendor/librqbit-dualstack-sockets" }
