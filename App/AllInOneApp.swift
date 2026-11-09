@@ -40,18 +40,25 @@ enum AppTab: Hashable {
 }
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: AppTab = .home
+    @State private var selectedModule = "torrent"
+
+    private func openModule(_ id: String) {
+        selectedModule = id
+        selection = .modules
+    }
 
     var body: some View {
         TabView(selection: $selection) {
             NavigationStack {
-                HomeView(openModules: { selection = .modules })
+                HomeView(openModules: { selection = .modules }, openModule: openModule)
             }
             .tabItem { Label("Главная", systemImage: "square.grid.2x2.fill") }
             .tag(AppTab.home)
 
             NavigationStack {
-                ModulesView()
+                ModulesView(selectedModule: $selectedModule)
             }
             .tabItem { Label("Модули", systemImage: "square.stack.3d.up.fill") }
             .tag(AppTab.modules)
@@ -76,5 +83,11 @@ struct RootTabView: View {
         }
         .toolbarBackground(Palette.surface, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                BeszelLiveAgent.shared.stop(reason: "iOS приостановила приложение.")
+                Task { await LocalTorrentEngine.shared.stop() }
+            }
+        }
     }
 }

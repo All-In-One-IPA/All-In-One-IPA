@@ -1,23 +1,22 @@
 import Foundation
 
-/// Загрузки и торренты. Only local configuration until the underlying service is implemented.
+/// Local BitTorrent implementation; the qBittorrent remote API is not used.
 enum TorrentModule {
     static let blueprint = ModuleBlueprint(
         id: "torrent",
-        headline: "Загрузки и торренты",
-        description: "Параметры для будущего локального и удалённого торрент-движка.",
+        headline: "Торренты на iPhone",
+        description: "Самостоятельный клиент BitTorrent на базе встроенной Rust-библиотеки librqbit. Все файлы хранятся на этом iPhone.",
         groups: [
-        ModuleGroup(title: "Загрузчик", inputs: [
-            ModuleInput("engine", "Режим", "Удалённый", .options(["Удалённый", "Локальный (эксперимент)"]), initialValue: "Удалённый"),
-            ModuleInput("url", "Адрес удалённого клиента", "https://example.com/qbt", .url, initialValue: ""),
-            ModuleInput("saveFolder", "Папка загрузок", "Downloads", .text, initialValue: "Downloads")
-        ])
+            ModuleGroup(title: "Локальное хранилище", inputs: [
+                ModuleInput("downloadFolder", "Папка", "Torrents", .text, initialValue: "Torrents")
+            ])
         ],
         milestones: [
-            "Поддержка magnet и torrent-файлов",
-            "Интеграция с удалённым qBittorrent API",
-            "Исследование локального движка и ограничений фона iOS"
+            "Проверить реальные magnet и .torrent загрузки на iPhone",
+            "Скорость, число пиров, приоритет файлов и возобновление",
+            "Файловый браузер и интеграция с медиаплеером",
+            "Исследовать ограничения фоновой работы iOS"
         ],
-        privacyNotice: "Фоновые P2P-сессии в iOS не гарантируются. Указанный адрес сейчас не используется для запросов."
+        privacyNotice: "Торренты скачиваются на iPhone через прямые P2P-соединения. Движок не отправляет данные на qBittorrent или другой промежуточный сервер."
     )
 }

@@ -61,3 +61,13 @@ The former configuration-only screens were not functional module foundations. Ne
 - [ ] Complete **Flowseal/tg-ws-proxy** MTProto/WebSocket port (current SOCKS5 fallback is not equivalent)
 - [ ] Replace IMAP status-only probe with message list, attachment fetching and own SMTP sending
 - [ ] Add security tests, error isolation and fully accessible controls
+
+## Native iPhone engines and workspace tabs
+
+- [x] Replace module-list cards with twelve horizontal workspace tabs
+- [x] Add independent **Работа / Настройки / О модуле** sections
+- [x] Replace remote qBittorrent control with a direct Rust librqbit bridge for iOS ARM64
+- [x] Native magnet/.torrent, pause/resume/remove, on-device file storage
+- [x] Replace Beszel dashboard client with a WebSocket agent using TOKEN/KEY verification and CBOR
+- [ ] Pass Rust/iOS CI and validate local peer downloads on real iPhone
+- [ ] Verify the agent against actual Beszel Hub and unavailable iOS metrics

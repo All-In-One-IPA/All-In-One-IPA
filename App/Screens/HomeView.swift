@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     let openModules: () -> Void
+    let openModule: (String) -> Void
     private let highlights = ["keyboard", "ssh", "dns", "player"]
 
     var body: some View {
@@ -99,8 +100,8 @@ struct HomeView: View {
     private var featured: some View {
         VStack(alignment: .leading, spacing: 15) {
             SectionHeading(title: "В центре внимания")
-            NavigationLink {
-                ModuleDetailView(module: ModuleCatalog.find("tgws"))
+            Button {
+                openModule("tgws")
             } label: {
                 HStack(alignment: .top, spacing: 15) {
                     ModuleGlyph(module: ModuleCatalog.find("tgws"), size: 55)
@@ -110,12 +111,12 @@ struct HomeView: View {
                                 .font(.system(size: 19, weight: .bold, design: .rounded))
                                 .foregroundStyle(Palette.ink)
                             Spacer(minLength: 4)
-                            StatusPill(status: .soon)
+                            StatusPill(status: .foundation)
                         }
                         Text("Локальный прокси Telegram")
                             .font(.system(size: 13))
                             .foregroundStyle(Palette.secondary)
-                        Text("Интеграция Flowseal/tg-ws-proxy. Сначала интерфейс, затем сетевой движок.")
+                        Text("Локальный SOCKS5-транспорт. MTProto-over-WebSocket — следующий этап.")
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.secondary)
                             .lineSpacing(3)
@@ -143,12 +144,8 @@ struct HomeView: View {
                 HStack(spacing: 12) {
                     ForEach(highlights, id: \.self) { id in
                         let module = ModuleCatalog.find(id)
-                        NavigationLink {
-                            if module.id == "keyboard" {
-                                KeyboardSettingsView()
-                            } else {
-                                ModuleDetailView(module: module)
-                            }
+                        Button {
+                            openModule(id)
                         } label: {
                             VStack(alignment: .leading, spacing: 17) {
                                 ModuleGlyph(module: module, size: 44)
@@ -182,12 +179,8 @@ struct HomeView: View {
             SectionHeading(title: "Дальше по плану")
             ForEach(["keyboard", "mail", "beszel"], id: \.self) { id in
                 let module = ModuleCatalog.find(id)
-                NavigationLink {
-                    if module.id == "keyboard" {
-                        KeyboardSettingsView()
-                    } else {
-                        ModuleDetailView(module: module)
-                    }
+                Button {
+                    openModule(id)
                 } label: {
                     HStack(spacing: 12) {
                         Circle().fill(module.category.tint).frame(width: 6, height: 6)

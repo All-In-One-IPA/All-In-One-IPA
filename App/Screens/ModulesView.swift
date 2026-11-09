@@ -1,113 +1,97 @@
 import SwiftUI
 
+/// Each module is an independent workspace tab; the bottom navigation keeps
+/// only five primary destinations rather than creating 12 cramped iOS tabs.
 struct ModulesView: View {
-    @State private var search = ""
-    @State private var selectedCategory: ModuleCategory?
+    @Binding var selectedModule: String
 
-    private var filtered: [ModuleInfo] {
-        ModuleCatalog.all.filter { module in
-            (selectedCategory == nil || module.category == selectedCategory) &&
-            (search.isEmpty || module.title.localizedCaseInsensitiveContains(search) ||
-             module.subtitle.localizedCaseInsensitiveContains(search))
-        }
+    private var activeModule: ModuleInfo {
+        ModuleCatalog.find(selectedModule)
     }
 
     var body: some View {
-        ZStack {
-            Palette.background.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Eyebrow(text: "КАТАЛОГ")
-                        Text("Модули")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(Palette.ink)
-                        Text("Инструменты с реальными действиями — дорабатываем по отдельности.")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Palette.secondary)
-                    }
-                    searchField
-                    categoryFilters
-                    HStack {
-                        Text("Найдено: \(filtered.count)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Palette.secondary)
-                        Spacer()
-                        Text("\(ModuleCatalog.all.filter { $0.status == .beta }.count) рабочий, \(ModuleCatalog.all.filter { $0.status == .foundation }.count) каркасов")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Palette.secondary)
-                    }
-
-                    LazyVStack(spacing: 12) {
-                        ForEach(filtered) { module in
-                            ModuleListRow(module: module)
-                        }
-                    }
-                    if filtered.isEmpty {
-                        QuietEmptyState(symbol: "magnifyingglass", title: "Ничего не нашлось",
-                                        message: "Попробуй другое название или сбрось фильтр.")
-                    }
+        VStack(spacing: 0) {
+            moduleTabs
+            Divider().overlay(Palette.hairline)
+            Group {
+                if selectedModule == "keyboard" {
+                    KeyboardSettingsView()
+                } else {
+                    ModuleDetailView(module: activeModule)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 17)
-                .padding(.bottom, 30)
             }
+            .id(selectedModule)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(Palette.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var searchField: some View {
-        HStack(spacing: 11) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Palette.secondary)
-            TextField("Найти модуль", text: $search)
-                .font(.system(size: 15))
-                .foregroundStyle(Palette.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !search.isEmpty {
-                Button {
-                    search = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Palette.secondary)
+    private var moduleTabs: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Eyebrow(text: "РАБОЧИЕ ПРОСТРАНСТВА")
+                    Text("Модули")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(Palette.ink)
                 }
-                .accessibilityLabel("Очистить поиск")
+                Spacer()
+                Text("\(ModuleCatalog.all.count)")
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Palette.secondary)
+            }
+            .padding(.horizontal, 20)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(ModuleCatalog.all) { module in
+                            moduleTab(module)
+                                .id(module.id)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 5)
+                }
+                .onAppear {
+                    proxy.scrollTo(selectedModule, anchor: .center)
+                }
+                .onChange(of: selectedModule) { _, newID in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(newID, anchor: .center)
+                    }
+                }
             }
         }
-        .padding(15)
-        .surfaceCard(radius: 18)
+        .padding(.top, 12)
+        .padding(.bottom, 9)
+        .background(Palette.surface)
     }
 
-    private var categoryFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip("Все", category: nil)
-                ForEach(ModuleCategory.allCases) { category in
-                    filterChip(category.title, category: category)
-                }
-            }
-        }
-        .contentMargins(.trailing, 20)
-        .padding(.trailing, -20)
-    }
-
-    private func filterChip(_ title: String, category: ModuleCategory?) -> some View {
-        let active = selectedCategory == category
+    private func moduleTab(_ module: ModuleInfo) -> some View {
+        let active = selectedModule == module.id
         return Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                selectedCategory = category
-            }
+            selectedModule = module.id
         } label: {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(active ? Palette.background : Palette.secondary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 10)
-                .background(active ? Palette.cyan : Palette.surface, in: Capsule())
-                .overlay(Capsule().strokeBorder(active ? Color.clear : Palette.hairline, lineWidth: 0.7))
+            HStack(spacing: 7) {
+                Image(systemName: module.symbol)
+                    .font(.system(size: 13))
+                Text(module.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(active ? Palette.background : Palette.secondary)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(active ? Palette.cyan : Palette.background,
+                        in: RoundedRectangle(cornerRadius: 13))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13)
+                    .strokeBorder(active ? Color.clear : Palette.hairline, lineWidth: 0.7)
+            }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? [.isSelected] : [])
     }
 }

@@ -12,6 +12,14 @@ struct ModuleWorkspaceView: View {
     @State private var saved = false
     @State private var validation: String?
     @State private var confirmReset = false
+    @State private var section: WorkspaceSection = .tools
+
+    private enum WorkspaceSection: String, CaseIterable, Identifiable {
+        case tools = "Работа"
+        case settings = "Настройки"
+        case about = "О модуле"
+        var id: String { rawValue }
+    }
 
     init(module: ModuleInfo, blueprint: ModuleBlueprint) {
         self.module = module
@@ -24,11 +32,17 @@ struct ModuleWorkspaceView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    ModuleActionPanel(moduleID: module.id, values: $values)
-                    forEachGroups
-                    saveControls
-                    milestones
-                    privacy
+                    workspaceTabs
+                    switch section {
+                    case .tools:
+                        ModuleActionPanel(moduleID: module.id, values: $values)
+                    case .settings:
+                        forEachGroups
+                        saveControls
+                    case .about:
+                        milestones
+                        privacy
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -45,6 +59,16 @@ struct ModuleWorkspaceView: View {
         } message: {
             Text("Будут удалены только настройки этого модуля на устройстве.")
         }
+    }
+
+    private var workspaceTabs: some View {
+        Picker("Раздел модуля", selection: $section) {
+            ForEach(WorkspaceSection.allCases) { item in
+                Text(item.rawValue).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("Вкладки модуля")
     }
 
     private var header: some View {

@@ -29,6 +29,10 @@ A personal, modular iOS utility app built with SwiftUI. One place for network to
 
 The planned tg-ws-proxy integration specifically refers to **Flowseal/tg-ws-proxy**, a local Telegram MTProto proxy. It is **not** a Telemt relay. Background execution on iOS requires device testing and is not promised.
 
+## Module tabs
+
+All 12 modules have independent horizontal workspace tabs within **Модули**. Each workspace separates **Работа / Настройки / О модуле**, and the home screen opens the target tab instead of overlaying a panel. The five bottom iOS tabs remain unchanged.
+
 ## Module foundations
 
 Each non-keyboard module has a typed configuration, shared UI and its own **real** action handler in `App/Modules/<Module>/*ActionView.swift`. Implemented minimums:
@@ -39,10 +43,10 @@ Each non-keyboard module has a typed configuration, shared UI and its own **real
 | SSH / SFTP | Password SSH command execution and read-only remote folder listing (Citadel) | Host-key pinning, full terminal and file transfers |
 | DNS Studio | Generate and export valid DoH/DoT `.mobileconfig` profiles | Profile signing and automated installation |
 | Media | Import audio/video from Files and play via AVPlayer | Advanced metadata, playlists |
-| Torrent | Remote qBittorrent HTTPS login, list tasks, add magnet | On-device P2P engine |
+| Torrent | Embedded **librqbit 9.0.0** Rust static library, magnet/.torrent, P2P transfers and local files, pause/resume/remove | Real download test on iPhone, iOS background limits |
 | Mail | IMAPS/TLS inbox counts and native iOS mail composer | Message browsing, built-in SMTP |
 | Keyboard | Real offline RU/EN keyboard extension | Suggestions and gestures |
-| Beszel | PocketBase login and systems listing | Detailed charts/real-time updates |
+| Beszel | Actual **Beszel WebSocket agent** (TOKEN + verified KEY challenge, CBOR responses with iPhone metrics) | Live hub testing and additional permitted metrics |
 | Network Lab | HTTP HEAD, DNS and TCP diagnostics | Packet capture, history |
 | Archives | ZIP import, extract, create and export | 7z, TAR |
 | Server Tools | Authenticated JSON HTTPS API requests | Docker-specific API client/UI |

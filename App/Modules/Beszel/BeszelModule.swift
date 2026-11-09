@@ -1,25 +1,22 @@
 import Foundation
 
-/// Мониторинг Beszel. Only local configuration until the underlying service is implemented.
 enum BeszelModule {
     static let blueprint = ModuleBlueprint(
         id: "beszel",
-        headline: "Мониторинг Beszel",
-        description: "Подготовка подключения к панели мониторинга своих устройств.",
+        headline: "Beszel Agent на iPhone",
+        description: "Телефон выступает агентом: подключается к существующему Beszel Hub, обменивается токеном и подписанным вызовом, затем предоставляет доступные метрики.",
         groups: [
-        ModuleGroup(title: "Панель", inputs: [
-            ModuleInput("url", "Адрес панели", "https://monitor.example.com", .url, initialValue: ""),
-            ModuleInput("label", "Название подключения", "Домашний сервер", .text, initialValue: "")
-        ]),
-        ModuleGroup(title: "Обзор", inputs: [
-            ModuleInput("refresh", "Интервал обновления", "30 с", .options(["15 с", "30 с", "60 с"]), initialValue: "15 с")
-        ])
+            ModuleGroup(title: "Beszel Hub", inputs: [
+                ModuleInput("url", "URL хаба (HTTPS)", "https://beszel.example.com", .url),
+                ModuleInput("label", "Имя iPhone в панели", "iPhone", .text, initialValue: "iPhone")
+            ])
         ],
         milestones: [
-            "HTTP-клиент Beszel и авторизация",
-            "Графики CPU, памяти, диска и сети",
-            "Состояния узлов и история событий"
+            "Проверить WebSocket-регистрацию с настоящим Beszel Hub",
+            "Добавить дополнительные разрешённые iOS показатели",
+            "Улучшить переподключение и отображение ответов хаба",
+            "Фоновая отправка не планируется без подходящих прав iOS"
         ],
-        privacyNotice: "Сейчас не производится опрос панели. Учётные данные позднее будут храниться в Keychain."
+        privacyNotice: "Подключение происходит только после твоего действия и прекращается при выходе из рабочего пространства или сворачивании приложения. Токен хранится в Keychain, а открытый ключ хаба проверяет его подпись."
     )
 }

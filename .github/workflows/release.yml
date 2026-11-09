@@ -87,6 +87,22 @@ jobs:
       - name: Generate Xcode project
         if: steps.meta.outputs.skip != 'true'
         run: xcodegen generate
+      - name: Configure Rust for iPhone ARM64
+        if: steps.meta.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Cache Rust dependencies
+        if: steps.meta.outputs.skip != 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Rust/TorrentBridge
+      - name: Build embedded librqbit static library
+        if: steps.meta.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path Rust/TorrentBridge/Cargo.toml --target aarch64-apple-ios --release
+          test -s Rust/TorrentBridge/target/aarch64-apple-ios/release/libaio_torrent.a
       - name: Build application without signing
         if: steps.meta.outputs.skip != 'true'
         env:
